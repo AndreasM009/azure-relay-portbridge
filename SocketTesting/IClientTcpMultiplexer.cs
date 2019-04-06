@@ -5,8 +5,9 @@ using System.Threading.Tasks;
 
 namespace SocketTesting
 {
-    public interface IProxyTcpMultiplexer
+    public interface IClientTcpMultiplexer
     {
         void Mutliplex(Guid tcpProxyId, int remotePort, byte[] data, int offset, int count);
+        void ClientConnectionClosed(Guid tcpProxyId);
     }
 }

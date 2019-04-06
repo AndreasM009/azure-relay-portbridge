@@ -26,5 +26,10 @@ namespace SocketTesting
             var echo = await streamReader.ReadLineAsync();
             Console.WriteLine($"{_id} Echo from server: {echo}");
         }
+
+        public void Close()
+        {
+            _client.Close();
+        }
     }
 }

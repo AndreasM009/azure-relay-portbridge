@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -6,23 +7,28 @@ using System.Threading.Tasks;
 
 namespace SocketTesting
 {
-    public class StubTcpHybridConnectionDemultiplexer : IStubTcpDemultiplexer
+    public class ServerTcpHybridConnectionDemultiplexer : IServerTcpDemultiplexer
     {
         #region Fields
 
         private readonly string _forwardHostName;
         private Dictionary<Guid, TcpClient> _forwardClients = new Dictionary<Guid, TcpClient>();
         private readonly object _syncRoot = new object();
-        private readonly IStubTcpHybridConnectionServer _hybridConnectionServer;
+        private readonly IServerTcpHybridConnectionServer _hybridConnectionServer;
+        private readonly ILogger _logger;
 
         #endregion
 
         #region c'tor 
 
-        public StubTcpHybridConnectionDemultiplexer(string forwardHostName, IStubTcpHybridConnectionServer server)
+        public ServerTcpHybridConnectionDemultiplexer(
+            string forwardHostName, 
+            IServerTcpHybridConnectionServer server,
+            ILogger logger)
         {            
             _forwardHostName = forwardHostName;
             _hybridConnectionServer = server;
+            _logger = logger;
         }
 
         #endregion        
@@ -36,9 +42,16 @@ namespace SocketTesting
                 var buffer = new byte[65536];
                 var count = 0;
 
-                while (0 != (count = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length)))
+                try
                 {
-                    await _hybridConnectionServer.WriteAsync(streamId, id, buffer, 0, count);
+                    while (0 != (count = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length)))
+                    {
+                        await _hybridConnectionServer.WriteAsync(streamId, id, buffer, 0, count);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, $"Unable to read data from tcp server on host {_forwardHostName}.");
                 }
 
                 lock (_syncRoot)
@@ -52,7 +65,7 @@ namespace SocketTesting
 
         #region IStubTcpDemultiplexer implemenation
 
-        async Task IStubTcpDemultiplexer.Demultiplex(Guid hybridConnectionId, Guid id, int targetPort, byte[] data)
+        async Task IServerTcpDemultiplexer.Demultiplex(Guid hybridConnectionId, Guid id, int targetPort, byte[] data)
         {
             TcpClient client = null;
             TcpClient tmp = null;
@@ -65,7 +78,8 @@ namespace SocketTesting
 
             if (null == client)
             {
-                client = new TcpClient(_forwardHostName, targetPort);
+                client = new TcpClient(AddressFamily.InterNetwork);
+                client.Connect(_forwardHostName, targetPort);
                 client.LingerState.Enabled = true;
                 client.NoDelay = true;
 
@@ -90,7 +104,35 @@ namespace SocketTesting
                 }
             }
 
-            await client.GetStream().WriteAsync(data);
+            try
+            {
+                await client.GetStream().WriteAsync(data);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, $"Unable to write data to tcp server on host {_forwardHostName}.");
+            }
+        }
+
+        Task IServerTcpDemultiplexer.ClientConnectionClosed(Guid hybridConnectionId, Guid id)
+        {
+            TcpClient client = null;
+            lock (_syncRoot)
+            {
+                if (!_forwardClients.Remove(id, out client))
+                    return Task.Delay(0);
+            }
+
+            try
+            {
+                client.Close();
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "An error occurred when closing connection.");
+            }
+
+            return Task.Delay(0);
         }
 
         #endregion

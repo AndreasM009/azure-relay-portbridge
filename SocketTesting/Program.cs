@@ -38,20 +38,21 @@ namespace SocketTesting
             serviceProvider.GetService<HybridConnectionClientHost>().Run();
 
             var clientTasks = new List<Task>();
-            for (var i=0; i<10; i++)
-            {
-                int count = i;
-                clientTasks.Add(Task.Factory.StartNew(async () => 
-                {
-                    var tc = new TestTcpClient("localhost", 4242, count);
+            //for (var i=0; i<1; i++)
+            //{
+            //    int count = i;
+            //    clientTasks.Add(Task.Factory.StartNew(async () => 
+            //    {
+            //        var tc = new TestTcpClient("localhost", 4242, count);
 
-                    for (var c = 0; c < 100; c++)
-                    {
-                        await tc.SendTestMessage($"{count} Hello World");
-                        await tc.SendTestMessage($"{count} Hello World");
-                    }
-                }, TaskCreationOptions.LongRunning));
-            }
+            //        for (var c = 0; c < 1; c++)
+            //        {
+            //            await tc.SendTestMessage($"{count} Hello World");
+            //            await tc.SendTestMessage($"{count} Hello World");
+            //        }
+            //        tc.Close();
+            //    }, TaskCreationOptions.LongRunning));
+            //}
 
             Task.WaitAll(clientTasks.ToArray());
 

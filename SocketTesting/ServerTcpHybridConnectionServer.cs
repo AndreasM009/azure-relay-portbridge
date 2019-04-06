@@ -1,4 +1,5 @@
 ﻿using Microsoft.Azure.Relay;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace SocketTesting
 {
-    public class StubTcpHybridConnectionServer : IStubTcpHybridConnectionServer
+    public class ServerTcpHybridConnectionServer : IServerTcpHybridConnectionServer
     {
         #region Fields
 
@@ -19,25 +20,28 @@ namespace SocketTesting
         private readonly HybridConnectionListener _hybridConnectionListener;
         private readonly object _syncRoot = new object();
         private readonly CancellationTokenSource _cts;
-        private IStubTcpDemultiplexer _demultiplexer;
+        private IServerTcpDemultiplexer _demultiplexer;
         private readonly Dictionary<Guid, HybridConnectionStream> _hybridConnectionStreams;
+        private readonly ILogger _logger;
 
         #endregion
 
         #region c'tor
 
-        public StubTcpHybridConnectionServer(
+        public ServerTcpHybridConnectionServer(
             string relayNamespace,
             string connectionName,
             string keyName,
             string key,
-            HashSet<int> validPorts)
+            HashSet<int> validPorts,
+            ILogger logger)
         {
             _relayNamespace = relayNamespace;
             _connectionName = connectionName;
             _keyName = keyName;
             _key = key;
             _validPorts = validPorts;
+            _logger = logger;
             _hybridConnectionStreams = new Dictionary<Guid, HybridConnectionStream>();
             _cts = new CancellationTokenSource();
 
@@ -47,16 +51,29 @@ namespace SocketTesting
 
         #endregion
 
-        #region Implementation
+        #region Implementation IServerTcpDemultiplexer
 
-        public IStubTcpDemultiplexer Demultiplexer
+        public IServerTcpDemultiplexer Demultiplexer
         {
             set { _demultiplexer = value; }
         }
 
+        #endregion
+
+        #region Implementation
+
         public async Task Start()
         {
-            await _hybridConnectionListener.OpenAsync(_cts.Token);
+            try
+            {
+                await _hybridConnectionListener.OpenAsync(_cts.Token);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, $"Unable to open hybrid connection listener for {_relayNamespace}/{_connectionName}");
+                return;
+            }
+            
 
             await Task.Factory.StartNew(async () =>
             {
@@ -103,46 +120,68 @@ namespace SocketTesting
                     var id = Guid.Empty;
                     int remotePort = 0;
                     var count = 0;
+                    Int32 controlCommand = ControlCommands.Forward;
                     Int32 frameSize = 0;
                     Int32 bytesRead = 0;
                     var memStream = new MemoryStream();
 
-                    count = await stream.ReadAsync(buffer, 0, 16 + sizeof(Int32) + sizeof(Int32));
-
-                    if (0 == count)
+                    // read control command
+                    count = await stream.ReadAsync(buffer, 0, sizeof(Int32));
+                    if (0 == count || token.IsCancellationRequested)
                         break;
 
-                    id = new Guid(new ArraySegment<byte>(buffer, 0, 16).ToArray());
-                    remotePort = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16, sizeof(Int32)).ToArray());
-                    frameSize = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16 + sizeof(Int32), sizeof(Int32)).ToArray());
+                    controlCommand = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 0, sizeof(Int32)).ToArray());
 
-                    if (!_validPorts.Contains(remotePort))
+                    if (ControlCommands.Forward == controlCommand)
                     {
-                        Console.WriteLine($"Connection on port {remotePort} not allowed for hybrid connectio  {_connectionName}.");
-
-                        stream.Close();
-                    }
-
-                    while (true)
-                    {
-                        var length = frameSize - bytesRead > buffer.Length ? buffer.Length : frameSize - bytesRead;
-                        count = await stream.ReadAsync(buffer, 0, length);
+                        // read forwarding preamble
+                        count = await stream.ReadAsync(buffer, 0, 16 + sizeof(Int32) + sizeof(Int32));
 
                         if (0 == count || token.IsCancellationRequested)
                             break;
 
-                        bytesRead += count;
-                        await memStream.WriteAsync(buffer, 0, count);
+                        id = new Guid(new ArraySegment<byte>(buffer, 0, 16).ToArray());
+                        remotePort = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16, sizeof(Int32)).ToArray());
+                        frameSize = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16 + sizeof(Int32), sizeof(Int32)).ToArray());
 
-                        if (bytesRead == frameSize)
+                        if (!_validPorts.Contains(remotePort))
                         {
-                            await _demultiplexer.Demultiplex(streamId, id, remotePort, memStream.ToArray());
-                            break;
-                        }
-                    }
+                            _logger.LogError($"Connection on port {remotePort} not allowed for hybrid connectio  {_connectionName}.");
 
-                    if (0 == count || token.IsCancellationRequested)
-                        break;
+                            stream.Close();
+                        }
+
+                        while (true)
+                        {
+                            var length = frameSize - bytesRead > buffer.Length ? buffer.Length : frameSize - bytesRead;
+                            count = await stream.ReadAsync(buffer, 0, length);
+
+                            if (0 == count || token.IsCancellationRequested)
+                                break;
+
+                            bytesRead += count;
+                            await memStream.WriteAsync(buffer, 0, count);
+
+                            if (bytesRead == frameSize)
+                            {
+                                await _demultiplexer.Demultiplex(streamId, id, remotePort, memStream.ToArray());
+                                break;
+                            }
+                        }
+
+                        if (0 == count || token.IsCancellationRequested)
+                            break;
+                    }
+                    else
+                    {
+                        count = await stream.ReadAsync(buffer, 0, 16);
+                        if (0 == count || token.IsCancellationRequested)
+                            break;
+
+                        id = new Guid(new ArraySegment<byte>(buffer, 0, 16).ToArray());
+
+                        await _demultiplexer.ClientConnectionClosed(streamId, id);
+                    }
                 }
 
                 lock (_syncRoot)
@@ -154,14 +193,14 @@ namespace SocketTesting
             });
         }
 
-        Task IStubTcpHybridConnectionServer.WriteAsync(Guid streamId, Guid id, byte[] data, int offset, int count)
+        Task IServerTcpHybridConnectionServer.WriteAsync(Guid streamId, Guid id, byte[] data, int offset, int count)
         {
             lock (_syncRoot)
             {
                 HybridConnectionStream stream = null;
                 if (!_hybridConnectionStreams.TryGetValue(streamId, out stream))
                 {
-                    Console.WriteLine($"Hybrid connection stream not available for connection {_connectionName}");
+                    _logger.LogError($"Hybrid connection stream not available for connection {_connectionName}");
                     return Task.Delay(0);
                 }
 

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace SocketTesting
 {
-    public interface IProxyTcpServer
+    public interface IClientTcpServer
     {
         Task WriteAsync(Guid id, byte[] data);
     }

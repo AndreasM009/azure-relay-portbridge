@@ -23,13 +23,14 @@ namespace SocketTesting
 
             foreach (var config in _options.ForwardingRules)
             {
-                var multiplexer = new ProxyTcpHybridConnectionMultiplexer(
+                var multiplexer = new ClientTcpHybridConnectionMultiplexer(
                     _options.ServiceBusNamespace, 
                     config.ServiceBusConnectionName, 
                     _options.ServiceBusKeyname, 
-                    _options.ServiceBuskey);
+                    _options.ServiceBuskey,
+                    _logger);
 
-                var server = new ProxyTcpServer(config.LocalPort, multiplexer, config.RemotePort);
+                var server = new ClientTcpServer(config.LocalPort, multiplexer, config.RemotePort, _logger);
                 multiplexer.ProxyTcpServer = server;
 
                 _logger.LogInformation($"Starting Tcp Server on local port {config.LocalPort} and mapping to remote port {config.RemotePort} using Hybrid Connection {_options.ServiceBusNamespace}/{config.ServiceBusConnectionName}.");

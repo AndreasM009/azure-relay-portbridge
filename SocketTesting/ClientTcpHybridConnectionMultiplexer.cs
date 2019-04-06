@@ -1,4 +1,5 @@
 ﻿using Microsoft.Azure.Relay;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace SocketTesting
 {
-    public class ProxyTcpHybridConnectionMultiplexer : IProxyTcpMultiplexer
+    public class ClientTcpHybridConnectionMultiplexer : IClientTcpMultiplexer
     {
         #region Fields
 
@@ -15,25 +16,27 @@ namespace SocketTesting
         private readonly string _connectionName = "{HybridConnectionName}";
         private readonly string _keyName = "{SASKeyName}";
         private readonly string _key = "{SASKey}";
-        private IProxyTcpServer _proxyTcpServer;
+        private IClientTcpServer _proxyTcpServer;
         private readonly object _syncRoot = new object();
         private readonly HybridConnectionClient _hybridConnectionClient;
         private HybridConnectionStream _hybridConnectionStream;
-
+        private readonly ILogger _logger;
         #endregion
 
         #region c'tor
 
-        public ProxyTcpHybridConnectionMultiplexer(
+        public ClientTcpHybridConnectionMultiplexer(
             string relayNamespace, 
             string connectionName,
             string keyName,
-            string key)
+            string key,
+            ILogger logger)
         {
             _relayNamespace = relayNamespace;
             _connectionName = connectionName;
             _keyName = keyName;
             _key = key;
+            _logger = logger;
 
             var tokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(_keyName, _key);
 
@@ -45,7 +48,7 @@ namespace SocketTesting
 
         #region Implementation
 
-        public IProxyTcpServer ProxyTcpServer
+        public IClientTcpServer ProxyTcpServer
         {
             set
             {
@@ -108,15 +111,15 @@ namespace SocketTesting
 
         #endregion
 
-
         #region Implementation ITcpMultiplexer
 
-        void IProxyTcpMultiplexer.Mutliplex(Guid tcpProxyId, int remotePort, byte[] data, int offset, int count)
+        void IClientTcpMultiplexer.Mutliplex(Guid tcpProxyId, int remotePort, byte[] data, int offset, int count)
         {
             CreateConnection();
 
             using (var memstream = new MemoryStream())
             {
+                memstream.Write(BitConverter.GetBytes(ControlCommands.Forward));
                 memstream.Write(tcpProxyId.ToByteArray());
                 memstream.Write(BitConverter.GetBytes((Int32)remotePort));
                 memstream.Write(BitConverter.GetBytes((Int32)count));
@@ -125,6 +128,29 @@ namespace SocketTesting
                 lock (_syncRoot)
                 {
                     _hybridConnectionStream.Write(memstream.ToArray());
+                }
+            }
+        }
+
+        void IClientTcpMultiplexer.ClientConnectionClosed(Guid tcpProxyId)
+        {
+            CreateConnection();
+
+            using (var memstream = new MemoryStream())
+            {
+                memstream.Write(BitConverter.GetBytes(ControlCommands.CloseForwardClient));
+                memstream.Write(tcpProxyId.ToByteArray());
+
+                lock (_syncRoot)
+                {
+                    try
+                    {
+                        _hybridConnectionStream.Write(memstream.ToArray());
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, $"Unable to write data to {_relayNamespace}/{_connectionName}");
+                    }
                 }
             }
         }
@@ -141,7 +167,14 @@ namespace SocketTesting
                 {
                     if (null == _hybridConnectionStream)
                     {
-                        _hybridConnectionStream = _hybridConnectionClient.CreateConnectionAsync().Result;
+                        try
+                        {
+                            _hybridConnectionStream = _hybridConnectionClient.CreateConnectionAsync().Result;
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogError(e, $"Unable to create hybrid connection for {_relayNamespace}/{_connectionName}");
+                        }
                     }
                 }
             }
