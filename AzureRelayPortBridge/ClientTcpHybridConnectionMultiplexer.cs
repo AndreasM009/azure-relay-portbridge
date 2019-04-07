@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public class ClientTcpHybridConnectionMultiplexer : IClientTcpMultiplexer
     {
@@ -77,7 +78,7 @@ namespace SocketTesting
                         break;
 
                     id = new Guid(new ArraySegment<byte>(buffer, 0, 16).ToArray());
-                    frameSize = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16, sizeof(Int32)).ToArray());
+                    frameSize = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16, sizeof(Int32)).ToArray(), 0);
 
                     while (true)
                     {
@@ -119,15 +120,21 @@ namespace SocketTesting
 
             using (var memstream = new MemoryStream())
             {
-                memstream.Write(BitConverter.GetBytes(ControlCommands.Forward));
-                memstream.Write(tcpProxyId.ToByteArray());
-                memstream.Write(BitConverter.GetBytes((Int32)remotePort));
-                memstream.Write(BitConverter.GetBytes((Int32)count));
+                var tmp = BitConverter.GetBytes(ControlCommands.Forward);
+                memstream.Write(tmp, 0, tmp.Length);
+                tmp = tcpProxyId.ToByteArray();
+                memstream.Write(tmp, 0, tmp.Length);
+                tmp = BitConverter.GetBytes((Int32)remotePort);
+                memstream.Write(tmp, offset, tmp.Length);
+                tmp = BitConverter.GetBytes((Int32)count);
+                memstream.Write(tmp, 0, tmp.Length);
                 memstream.Write(data, offset, count);
 
                 lock (_syncRoot)
                 {
-                    _hybridConnectionStream.Write(memstream.ToArray());
+                    tmp = memstream.ToArray();
+                    _hybridConnectionStream.Write(tmp, 0, tmp.Length);
+                    _hybridConnectionStream.Flush();
                 }
             }
         }
@@ -138,14 +145,17 @@ namespace SocketTesting
 
             using (var memstream = new MemoryStream())
             {
-                memstream.Write(BitConverter.GetBytes(ControlCommands.CloseForwardClient));
-                memstream.Write(tcpProxyId.ToByteArray());
+                var tmp = BitConverter.GetBytes(ControlCommands.CloseForwardClient);
+                memstream.Write(tmp, 0, tmp.Length);
+                tmp = tcpProxyId.ToByteArray();
+                memstream.Write(tmp, 0, tmp.Length);
 
                 lock (_syncRoot)
                 {
                     try
                     {
-                        _hybridConnectionStream.Write(memstream.ToArray());
+                        tmp = memstream.ToArray();
+                        _hybridConnectionStream.Write(tmp, 0, tmp.Length);
                     }
                     catch (Exception e)
                     {

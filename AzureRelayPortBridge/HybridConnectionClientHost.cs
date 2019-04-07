@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Options;
 using System.Threading.Tasks;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public class HybridConnectionClientHost
     {

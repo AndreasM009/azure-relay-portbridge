@@ -7,7 +7,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public class ClientTcpServer : IClientTcpServer
     {
@@ -47,7 +47,10 @@ namespace SocketTesting
             var client = GetClient(id);
 
             if (null != client)
-                await client.GetStream().WriteAsync(data);
+            {
+                await client.GetStream().WriteAsync(data, 0, data.Length);
+                await client.GetStream().FlushAsync();
+            }
         }
 
         public async Task Start()

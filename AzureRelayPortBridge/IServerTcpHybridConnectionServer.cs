@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public interface IServerTcpHybridConnectionServer
     {

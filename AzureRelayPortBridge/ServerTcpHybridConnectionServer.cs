@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public class ServerTcpHybridConnectionServer : IServerTcpHybridConnectionServer
     {
@@ -130,7 +131,7 @@ namespace SocketTesting
                     if (0 == count || token.IsCancellationRequested)
                         break;
 
-                    controlCommand = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 0, sizeof(Int32)).ToArray());
+                    controlCommand = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 0, sizeof(Int32)).ToArray(), 0);
 
                     if (ControlCommands.Forward == controlCommand)
                     {
@@ -141,8 +142,8 @@ namespace SocketTesting
                             break;
 
                         id = new Guid(new ArraySegment<byte>(buffer, 0, 16).ToArray());
-                        remotePort = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16, sizeof(Int32)).ToArray());
-                        frameSize = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16 + sizeof(Int32), sizeof(Int32)).ToArray());
+                        remotePort = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16, sizeof(Int32)).ToArray(), 0);
+                        frameSize = BitConverter.ToInt32(new ArraySegment<byte>(buffer, 16 + sizeof(Int32), sizeof(Int32)).ToArray(), 0);
 
                         if (!_validPorts.Contains(remotePort))
                         {
@@ -205,11 +206,14 @@ namespace SocketTesting
                 }
 
                 var memstream = new MemoryStream();
-                memstream.Write(id.ToByteArray());
-                memstream.Write(BitConverter.GetBytes((Int32)count));
+                var tmp = id.ToByteArray();
+                memstream.Write(tmp, 0, tmp.Length);
+                tmp = BitConverter.GetBytes((Int32)count);
+                memstream.Write(tmp, 0, tmp.Length);
                 memstream.Write(data, offset, count);
-
-                stream.Write(memstream.ToArray());
+                tmp = memstream.ToArray();
+                stream.Write(tmp, 0, tmp.Length);
+                stream.Flush();
                 return Task.Delay(0);
             }
         }

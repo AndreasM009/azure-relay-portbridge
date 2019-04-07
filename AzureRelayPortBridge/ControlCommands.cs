@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public static class ControlCommands
     {

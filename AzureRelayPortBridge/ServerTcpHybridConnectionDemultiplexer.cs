@@ -5,7 +5,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public class ServerTcpHybridConnectionDemultiplexer : IServerTcpDemultiplexer
     {
@@ -48,6 +48,10 @@ namespace SocketTesting
                     {
                         await _hybridConnectionServer.WriteAsync(streamId, id, buffer, 0, count);
                     }
+                }
+                catch (IOException)
+                {
+                    // connection aborted?
                 }
                 catch (Exception e)
                 {
@@ -106,7 +110,8 @@ namespace SocketTesting
 
             try
             {
-                await client.GetStream().WriteAsync(data);
+                await client.GetStream().WriteAsync(data, 0, data.Length);
+                await client.GetStream().FlushAsync();
             }
             catch (Exception e)
             {
@@ -119,8 +124,10 @@ namespace SocketTesting
             TcpClient client = null;
             lock (_syncRoot)
             {
-                if (!_forwardClients.Remove(id, out client))
+                if (!_forwardClients.TryGetValue(id, out client))
                     return Task.Delay(0);
+
+                _forwardClients.Remove(id);
             }
 
             try

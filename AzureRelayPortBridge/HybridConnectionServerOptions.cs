@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace SocketTesting
+namespace AzureReleayPortBridge
 {
     public class HybridConnectionServerOptions
     {
