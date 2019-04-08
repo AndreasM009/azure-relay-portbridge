@@ -26,6 +26,12 @@ namespace AzureReleayPortBridge
         {
             _logger.LogInformation($"Starting Hybrid Connection clients...");
 
+            if (null == _options || null == _options.ForwardingRules)
+            {
+                _logger.LogError("No configuration set.");
+                return;
+            }
+
             foreach (var config in _options.ForwardingRules)
             {
                 var multiplexer = new ClientTcpHybridConnectionMultiplexer(
