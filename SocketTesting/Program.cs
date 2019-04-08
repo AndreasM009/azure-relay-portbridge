@@ -35,8 +35,8 @@ namespace SocketTesting
                 .AddSingleton<HybridConnectionClientHost>();
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
-            serviceProvider.GetService<HybridConnectionServerHost>().Run();
-            serviceProvider.GetService<HybridConnectionClientHost>().Run();
+            serviceProvider.GetService<HybridConnectionServerHost>().Run().GetAwaiter().GetResult();
+            serviceProvider.GetService<HybridConnectionClientHost>().Run().GetAwaiter().GetResult();
 
             var clientTasks = new List<Task>();
             for (var i = 0; i < 10; i++)

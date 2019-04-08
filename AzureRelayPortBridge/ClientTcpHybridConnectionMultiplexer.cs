@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace AzureReleayPortBridge
@@ -104,10 +105,10 @@ namespace AzureReleayPortBridge
             });
         }
 
-        public void Stop()
+        public async Task Stop()
         {
             if (null != _hybridConnectionStream)
-                _hybridConnectionStream.Shutdown();
+                await _hybridConnectionStream.ShutdownAsync(CancellationToken.None);
         }
 
         #endregion

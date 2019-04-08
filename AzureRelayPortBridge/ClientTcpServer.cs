@@ -80,11 +80,12 @@ namespace AzureReleayPortBridge
             });
         }
 
-        public void Stop()
+        public Task Stop()
         {
             _tcpListener.Stop();
             _run = false;
             _cancellationTokenSource.Cancel();
+            return Task.Delay(0);
         }
 
         #endregion

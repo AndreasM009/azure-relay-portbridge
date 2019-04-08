@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace AzureReleayPortBridge
@@ -8,6 +9,8 @@ namespace AzureReleayPortBridge
     {
         private readonly HybridConnectionClientOptions _options;
         private readonly ILogger<HybridConnectionClientHost> _logger;
+        private readonly List<ClientTcpServer> _servers;
+        private readonly List<ClientTcpHybridConnectionMultiplexer> _multiplexer;
 
         public HybridConnectionClientHost(
             IOptions<HybridConnectionClientOptions> options,
@@ -15,9 +18,11 @@ namespace AzureReleayPortBridge
         {
             _options = options.Value;
             _logger = logger;
+            _servers = new List<ClientTcpServer>();
+            _multiplexer = new List<ClientTcpHybridConnectionMultiplexer>();
         }
 
-        public Task Run()
+        public async Task Run()
         {
             _logger.LogInformation($"Starting Hybrid Connection clients...");
 
@@ -35,11 +40,21 @@ namespace AzureReleayPortBridge
 
                 _logger.LogInformation($"Starting Tcp Server on local port {config.LocalPort} and mapping to remote port {config.RemotePort} using Hybrid Connection {_options.ServiceBusNamespace}/{config.ServiceBusConnectionName}.");
 
-                multiplexer.Start().GetAwaiter().GetResult();
-                server.Start().GetAwaiter().GetResult();
-            }
+                await multiplexer.Start();
+                await server.Start();
 
-            return Task.Delay(0);
+                _servers.Add(server);
+                _multiplexer.Add(multiplexer);
+            }
+        }
+
+        public async Task Stop()
+        {
+            foreach (var server in _servers)
+                await server.Stop();
+
+            foreach (var multiplexer in _multiplexer)
+                await multiplexer.Stop();
         }
     }
 }

@@ -10,6 +10,7 @@ namespace AzureReleayPortBridge
     {
         private readonly HybridConnectionServerOptions _options;
         private readonly ILogger<HybridConnectionServerHost> _logger;
+        private readonly List<ServerTcpHybridConnectionServer> _servers;
 
         public HybridConnectionServerHost(
             IOptions<HybridConnectionServerOptions> options,
@@ -17,9 +18,10 @@ namespace AzureReleayPortBridge
         {
             _options = options.Value;
             _logger = logger;
+            _servers = new List<ServerTcpHybridConnectionServer>();
         }
 
-        public Task Run()
+        public async Task Run()
         {
             _logger.LogInformation("Starting Hybrid Connection Listener...");
 
@@ -39,11 +41,17 @@ namespace AzureReleayPortBridge
                     server.Demultiplexer = demultiplexer;
 
                     _logger.LogInformation($"Starting instance {i + 1} of Hybrid Connection Listener on {_options.ServiceBusNamespace}/{config.ServiceBusConnectionName}.");
-                    server.Start().GetAwaiter().GetResult();
+                    await server.Start();
+                    _servers.Add(server);
                 }
             }
-
-            return Task.Delay(0);
         }
+
+        public async Task Stop()
+        {
+            foreach (var server in _servers)
+                await server.Stop();
+        }
+
     }
 }

@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestServer", "TestServer\Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureRelayPortBridge", "AzureRelayPortBridge\AzureRelayPortBridge.csproj", "{737A0271-A855-47AA-A4DA-A21A1E31BDB1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IntegrationTest", "IntegrationTest\IntegrationTest.csproj", "{38C67817-0A2B-4182-A318-2AE4AB0CA6DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{737A0271-A855-47AA-A4DA-A21A1E31BDB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{737A0271-A855-47AA-A4DA-A21A1E31BDB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{737A0271-A855-47AA-A4DA-A21A1E31BDB1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{38C67817-0A2B-4182-A318-2AE4AB0CA6DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{38C67817-0A2B-4182-A318-2AE4AB0CA6DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{38C67817-0A2B-4182-A318-2AE4AB0CA6DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{38C67817-0A2B-4182-A318-2AE4AB0CA6DF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

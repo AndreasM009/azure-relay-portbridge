@@ -84,7 +84,7 @@ namespace AzureReleayPortBridge
                 {
                     var client = await _hybridConnectionListener.AcceptConnectionAsync();
                     if (null == client)
-                    {
+                    {                        
                         await _hybridConnectionListener.CloseAsync(CancellationToken.None);
                         return;
                     }
@@ -101,9 +101,14 @@ namespace AzureReleayPortBridge
             });
         }
 
-        public void Stop()
+        public async Task Stop()
         {
             _cts.Cancel();
+
+            foreach (var stream in _hybridConnectionStreams.Values)
+                await stream.ShutdownAsync(CancellationToken.None);
+
+            await _hybridConnectionListener.CloseAsync();
         }
 
         #endregion
